@@ -10,6 +10,8 @@ DOMAIN = "bosch"
 BOSCH_GATEWAY_ENTRY = "BoschGatewayEntry"
 ACCESS_KEY = "access_key"
 ACCESS_TOKEN = "access_token"
+REFRESH_TOKEN = "refresh_token"
+TOKEN_EXPIRES_AT = "token_expires_at"
 UUID = "uuid"
 
 CONF_PROTOCOL = "http_xmpp"

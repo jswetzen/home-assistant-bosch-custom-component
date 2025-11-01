@@ -7,6 +7,7 @@ from bosch_thermostat_client.const import HTTP, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.const.ivt import IVT, IVT_MBLAN
 from bosch_thermostat_client.const.nefit import NEFIT
+from bosch_thermostat_client.const.pointt import POINTTAPI
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     EncryptionException,
@@ -26,10 +27,12 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_PROTOCOL,
     DOMAIN,
+    REFRESH_TOKEN,
+    TOKEN_EXPIRES_AT,
     UUID,
 )
 
-DEVICE_TYPE = [NEFIT, IVT, EASYCONTROL, IVT_MBLAN]
+DEVICE_TYPE = [NEFIT, IVT, EASYCONTROL, IVT_MBLAN, POINTTAPI]
 PROTOCOLS = [HTTP, XMPP]
 
 
@@ -57,7 +60,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         return await self.async_step_choose_type(user_input)
 
     async def async_step_choose_type(self, user_input=None):
-        """Choose if setup is for IVT, IVT/MBLAN, NEFIT or EASYCONTROL."""
+        """Choose if setup is for IVT, IVT/MBLAN, NEFIT, EASYCONTROL or POINTTAPI."""
         errors = {}
         if user_input is not None:
             self._choose_type = user_input[CONF_DEVICE_TYPE]
@@ -75,6 +78,8 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 )
             elif self._choose_type in (NEFIT, EASYCONTROL, IVT_MBLAN):
                 return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
+            elif self._choose_type == POINTTAPI:
+                return await self.async_step_protocol({CONF_PROTOCOL: HTTP})
         return self.async_show_form(
             step_id="choose_type",
             data_schema=vol.Schema(
@@ -175,16 +180,22 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             _LOGGER.error("Error connecting Bosch at %s - %s", host, err)
         else:
             _LOGGER.debug("Adding Bosch entry.")
+            entry_data = {
+                CONF_ADDRESS: device.host,
+                UUID: uuid,
+                ACCESS_KEY: device.access_key,
+                ACCESS_TOKEN: device.access_token,
+                CONF_DEVICE_TYPE: self._choose_type,
+                CONF_PROTOCOL: session_type,
+            }
+            # Add OAuth tokens for POINTTAPI
+            if hasattr(device, 'refresh_token') and device.refresh_token:
+                entry_data[REFRESH_TOKEN] = device.refresh_token
+            if hasattr(device, 'token_expires_at') and device.token_expires_at:
+                entry_data[TOKEN_EXPIRES_AT] = device.token_expires_at
             return self.async_create_entry(
                 title=device.device_name or "Unknown model",
-                data={
-                    CONF_ADDRESS: device.host,
-                    UUID: uuid,
-                    ACCESS_KEY: device.access_key,
-                    ACCESS_TOKEN: device.access_token,
-                    CONF_DEVICE_TYPE: self._choose_type,
-                    CONF_PROTOCOL: session_type,
-                },
+                data=entry_data,
             )
 
     async def async_step_discovery(self, discovery_info=None):

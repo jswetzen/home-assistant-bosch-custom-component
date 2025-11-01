@@ -74,6 +74,7 @@ from .const import (
     INTERVAL,
     NOTIFICATION_ID,
     RECORDING_INTERVAL,
+    REFRESH_TOKEN,
     SCAN_INTERVAL,
     SIGNAL_BINARY_SENSOR_UPDATE_BOSCH,
     SIGNAL_BOSCH,
@@ -85,6 +86,7 @@ from .const import (
     SIGNAL_SOLAR_UPDATE_BOSCH,
     SIGNAL_SWITCH,
     SOLAR,
+    TOKEN_EXPIRES_AT,
     UUID,
     WATER_HEATER,
 )
@@ -150,6 +152,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         device_type=entry.data[CONF_DEVICE_TYPE],
         access_key=entry.data[ACCESS_KEY],
         access_token=entry.data[ACCESS_TOKEN],
+        refresh_token=entry.data.get(REFRESH_TOKEN),
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
@@ -206,7 +209,7 @@ class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
     def __init__(
-        self, hass, uuid, host, protocol, device_type, access_key, access_token, entry
+        self, hass, uuid, host, protocol, device_type, access_key, access_token, refresh_token, entry
     ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
@@ -214,6 +217,7 @@ class BoschGatewayEntry:
         self._host = host
         self._access_key = access_key
         self._access_token = access_token
+        self._refresh_token = refresh_token
         self._device_type = device_type
         self._protocol = protocol
         self.config_entry = entry
@@ -244,6 +248,8 @@ class BoschGatewayEntry:
             host=self._host,
             access_key=self._access_key,
             access_token=self._access_token,
+            refresh_token=self._refresh_token,
+            token_file=None,  # HA manages tokens via config entry
         )
 
         async def close_connection(event) -> None:
@@ -445,6 +451,34 @@ class BoschGatewayEntry:
             await self.component_update(WATER_HEATER, event_time)
             await self.component_update(SWITCH, event_time)
             await self.component_update(NUMBER, event_time)
+
+            # Check if OAuth tokens were refreshed by the library
+            if hasattr(self.gateway, 'access_token') and hasattr(self.gateway, 'refresh_token'):
+                current_token = self.gateway.access_token
+                stored_token = self.config_entry.data.get(ACCESS_TOKEN)
+
+                if current_token and current_token != stored_token:
+                    _LOGGER.info("OAuth tokens refreshed, updating config entry")
+
+                    # Update config entry with new tokens
+                    new_data = {**self.config_entry.data}
+                    new_data[ACCESS_TOKEN] = self.gateway.access_token
+
+                    if self.gateway.refresh_token:
+                        new_data[REFRESH_TOKEN] = self.gateway.refresh_token
+
+                    if hasattr(self.gateway, 'token_expires_at') and self.gateway.token_expires_at:
+                        new_data[TOKEN_EXPIRES_AT] = self.gateway.token_expires_at
+
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data=new_data
+                    )
+
+                    # Update internal reference
+                    self._access_token = self.gateway.access_token
+                    self._refresh_token = self.gateway.refresh_token
+
             _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
 
     async def firmware_refresh(self, event_time=None):
