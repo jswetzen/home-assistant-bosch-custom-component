@@ -29,7 +29,15 @@
                     "access_token": "Access token",
                     "password": "Password"
                 }
-              }
+            },
+            "pointtapi_config": {
+                "title": "Bosch PoinTT API OAuth config",
+                "data": {
+                    "device_id": "Device ID",
+                    "access_token": "OAuth Access Token",
+                    "refresh_token": "OAuth Refresh Token (optional)"
+                }
+            }
         },
         "error": {
             "service_unavailable": "No service available"

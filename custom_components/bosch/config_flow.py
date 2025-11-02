@@ -19,6 +19,8 @@ from homeassistant.core import callback
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_ADDRESS, CONF_PASSWORD
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+CONF_DEVICE_ID = "device_id"
+
 from . import create_notification_firmware
 from .const import (
     ACCESS_KEY,
@@ -50,6 +52,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
         self._choose_type = None
         self._host = None
         self._access_token = None
+        self._refresh_token = None
         self._password = None
         self._protocol = None
         self._device_type = None
@@ -78,7 +81,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             elif self._choose_type in (NEFIT, EASYCONTROL, IVT_MBLAN):
                 return await self.async_step_protocol({CONF_PROTOCOL: XMPP})
             elif self._choose_type == POINTTAPI:
-                return await self.async_step_protocol({CONF_PROTOCOL: HTTP})
+                return await self.async_step_pointtapi_config()
         return self.async_show_form(
             step_id="choose_type",
             data_schema=vol.Schema(
@@ -152,18 +155,54 @@ class BoschFlowHandler(config_entries.ConfigFlow):
                 password=self._password,
             )
 
+    async def async_step_pointtapi_config(self, user_input=None):
+        """Handle POINTTAPI OAuth configuration."""
+        errors = {}
+        if user_input is not None:
+            self._host = user_input[CONF_DEVICE_ID]
+            self._access_token = user_input[CONF_ACCESS_TOKEN]
+            self._refresh_token = user_input.get(REFRESH_TOKEN)
+            self._protocol = HTTP
+            return await self.configure_gateway(
+                device_type=self._choose_type,
+                session=async_get_clientsession(self.hass, verify_ssl=False),
+                session_type=HTTP,
+                host=self._host,
+                access_token=self._access_token,
+                refresh_token=self._refresh_token,
+            )
+        return self.async_show_form(
+            step_id="pointtapi_config",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_DEVICE_ID): str,
+                    vol.Required(CONF_ACCESS_TOKEN): str,
+                    vol.Optional(REFRESH_TOKEN): str,
+                }
+            ),
+            errors=errors,
+        )
+
     async def configure_gateway(
-        self, device_type, session_type, host, access_token, password=None, session=None
+        self, device_type, session_type, host, access_token, password=None, refresh_token=None, session=None
     ):
         try:
             BoschGateway = gateway_chooser(device_type)
-            device = BoschGateway(
-                session_type=session_type,
-                host=host,
-                access_token=access_token,
-                password=password,
-                session=session,
-            )
+            gateway_params = {
+                "session_type": session_type,
+                "host": host,
+                "access_token": access_token,
+                "session": session,
+            }
+            # Add password for non-OAuth devices
+            if password is not None:
+                gateway_params["password"] = password
+            # Add refresh_token for OAuth devices (POINTTAPI)
+            if refresh_token is not None:
+                gateway_params["refresh_token"] = refresh_token
+                gateway_params["token_file"] = None  # HA manages tokens
+
+            device = BoschGateway(**gateway_params)
             try:
                 uuid = await device.check_connection()
             except (FirmwareException, UnknownDevice) as err:
