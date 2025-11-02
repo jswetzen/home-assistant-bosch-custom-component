@@ -3,11 +3,10 @@ import logging
 
 import voluptuous as vol
 from bosch_thermostat_client import gateway_chooser
-from bosch_thermostat_client.const import HTTP, XMPP
+from bosch_thermostat_client.const import HTTP, POINTTAPI, XMPP
 from bosch_thermostat_client.const.easycontrol import EASYCONTROL
 from bosch_thermostat_client.const.ivt import IVT, IVT_MBLAN
 from bosch_thermostat_client.const.nefit import NEFIT
-from bosch_thermostat_client.const.pointt import POINTTAPI
 from bosch_thermostat_client.exceptions import (
     DeviceException,
     EncryptionException,
