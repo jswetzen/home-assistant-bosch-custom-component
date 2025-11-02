@@ -201,6 +201,7 @@ class BoschFlowHandler(config_entries.ConfigFlow):
             if refresh_token is not None:
                 gateway_params["refresh_token"] = refresh_token
                 gateway_params["token_file"] = None  # HA manages tokens
+                gateway_params["access_key"] = None  # POINTTAPI doesn't use access_key
 
             device = BoschGateway(**gateway_params)
             try:
