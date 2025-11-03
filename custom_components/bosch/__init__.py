@@ -262,10 +262,7 @@ class BoschGatewayEntry:
             async_dispatcher_connect(
                 self.hass, SIGNAL_BOSCH, self.async_get_signals
             )
-            await self.hass.config_entries.async_forward_entry_setups(
-                self.config_entry,
-                [component for component in self.supported_platforms if component != SOLAR]
-            )
+            # Create main device BEFORE forwarding to platforms
             device_registry = dr.async_get(self.hass)
             device_registry.async_get_or_create(
                 config_entry_id=self.config_entry.entry_id,
@@ -274,6 +271,11 @@ class BoschGatewayEntry:
                 model=self.gateway.device_type,
                 name=self.gateway.device_name,
                 sw_version=self.gateway.firmware,
+            )
+            # Now forward to platforms (entities will reference the device above)
+            await self.hass.config_entries.async_forward_entry_setups(
+                self.config_entry,
+                [component for component in self.supported_platforms if component != SOLAR]
             )
             if GATEWAY in self.hass.data[DOMAIN][self.uuid]:
                 _LOGGER.debug("Registering debug services.")
