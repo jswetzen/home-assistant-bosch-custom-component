@@ -11,6 +11,7 @@ from typing import Any
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from bosch_thermostat_client.const import (
+    AC,
     DHW,
     HC,
     HTTP,
@@ -108,6 +109,7 @@ SIGNALS = {
 }
 
 SUPPORTED_PLATFORMS = {
+    AC: [CLIMATE],
     HC: [CLIMATE],
     DHW: [WATER_HEATER],
     SWITCH: [SWITCH],
@@ -415,6 +417,9 @@ class BoschGatewayEntry:
     async def component_update(self, component_type=None, event_time=None):
         """Update data from HC, DHW, ZN, Sensors, Switch."""
         if component_type in self.supported_platforms:
+            # Check if platform has actually been set up and entities registered
+            if component_type not in self.hass.data[DOMAIN][self.uuid]:
+                return False
             updated = False
             entities = self.hass.data[DOMAIN][self.uuid][component_type]
             for entity in entities:
@@ -447,12 +452,9 @@ class BoschGatewayEntry:
             return
         _LOGGER.debug("Updating Bosch thermostat entitites.")
         async with self._update_lock:
-            await self.component_update(SENSOR, event_time)
-            await self.component_update(BINARY_SENSOR, event_time)
-            await self.component_update(CLIMATE, event_time)
-            await self.component_update(WATER_HEATER, event_time)
-            await self.component_update(SWITCH, event_time)
-            await self.component_update(NUMBER, event_time)
+            # Only update platforms that are actually supported by this device
+            for platform in self.supported_platforms:
+                await self.component_update(platform, event_time)
 
             # Check if OAuth tokens were refreshed by the library
             if hasattr(self.gateway, 'access_token') and hasattr(self.gateway, 'refresh_token'):
