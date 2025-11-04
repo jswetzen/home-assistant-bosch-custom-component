@@ -187,7 +187,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reload entry if options change."""
-    _LOGGER.debug("Reloading entry %s", entry.entry_id)
+    _LOGGER.debug("Options changed for entry %s, reloading", entry.entry_id)
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -463,6 +463,9 @@ class BoschGatewayEntry:
 
                 if current_token and current_token != stored_token:
                     _LOGGER.info("OAuth tokens refreshed, updating config entry")
+                    _LOGGER.debug("Old token: %s..., New token: %s...",
+                                  str(stored_token)[:20] if stored_token else "None",
+                                  str(current_token)[:20] if current_token else "None")
 
                     # Update config entry with new tokens
                     new_data = {**self.config_entry.data}
@@ -479,9 +482,11 @@ class BoschGatewayEntry:
                         data=new_data
                     )
 
-                    # Update internal reference
+                    # Update internal reference so we don't detect as changed again
                     self._access_token = self.gateway.access_token
                     self._refresh_token = self.gateway.refresh_token
+
+                    _LOGGER.debug("Config entry updated with new tokens")
 
             _LOGGER.debug("Finish updating entities. Waiting for next scheduled check.")
 
