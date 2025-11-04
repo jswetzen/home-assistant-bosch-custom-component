@@ -457,15 +457,39 @@ class BoschGatewayEntry:
                 await self.component_update(platform, event_time)
 
             # Check if OAuth tokens were refreshed by the library
-            if hasattr(self.gateway, 'access_token') and hasattr(self.gateway, 'refresh_token'):
+            if hasattr(self.gateway, 'tokens_changed') and callable(self.gateway.tokens_changed):
+                # Use library helper method (POINTTAPI)
+                if self.gateway.tokens_changed(
+                    self.config_entry.data.get(ACCESS_TOKEN),
+                    self.config_entry.data.get(REFRESH_TOKEN)
+                ):
+                    _LOGGER.info("OAuth tokens refreshed, updating config entry")
+
+                    # Update config entry with new tokens from library
+                    new_data = {**self.config_entry.data}
+                    new_data[ACCESS_TOKEN] = self.gateway.access_token
+                    new_data[REFRESH_TOKEN] = self.gateway.refresh_token
+
+                    if hasattr(self.gateway, 'token_expires_at') and self.gateway.token_expires_at:
+                        new_data[TOKEN_EXPIRES_AT] = self.gateway.token_expires_at
+
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data=new_data
+                    )
+
+                    # Update internal reference
+                    self._access_token = self.gateway.access_token
+                    self._refresh_token = self.gateway.refresh_token
+
+                    _LOGGER.debug("Config entry updated with new tokens")
+            elif hasattr(self.gateway, 'access_token') and hasattr(self.gateway, 'refresh_token'):
+                # Fallback for older library versions
                 current_token = self.gateway.access_token
                 stored_token = self.config_entry.data.get(ACCESS_TOKEN)
 
                 if current_token and current_token != stored_token:
-                    _LOGGER.info("OAuth tokens refreshed, updating config entry")
-                    _LOGGER.debug("Old token: %s..., New token: %s...",
-                                  str(stored_token)[:20] if stored_token else "None",
-                                  str(current_token)[:20] if current_token else "None")
+                    _LOGGER.info("OAuth tokens refreshed (legacy check), updating config entry")
 
                     # Update config entry with new tokens
                     new_data = {**self.config_entry.data}
@@ -482,7 +506,7 @@ class BoschGatewayEntry:
                         data=new_data
                     )
 
-                    # Update internal reference so we don't detect as changed again
+                    # Update internal reference
                     self._access_token = self.gateway.access_token
                     self._refresh_token = self.gateway.refresh_token
 
