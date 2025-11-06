@@ -187,8 +187,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reload entry if options change."""
-    _LOGGER.debug("Options changed for entry %s, reloading", entry.entry_id)
-    await hass.config_entries.async_reload(entry.entry_id)
+    # Note: This is triggered by ANY entry update, including token updates
+    # We only want to reload for actual options changes, not token updates
+    # Token updates are handled in-memory in thermostat_refresh()
+    _LOGGER.debug("Entry updated for %s - not reloading (token updates handled in-memory)", entry.entry_id)
 
 
 def create_notification_firmware(hass: HomeAssistant, msg):
