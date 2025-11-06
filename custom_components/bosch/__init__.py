@@ -459,11 +459,18 @@ class BoschGatewayEntry:
             # Check if OAuth tokens were refreshed by the library
             if hasattr(self.gateway, 'tokens_changed') and callable(self.gateway.tokens_changed):
                 # Use library helper method (POINTTAPI)
-                if self.gateway.tokens_changed(
-                    self.config_entry.data.get(ACCESS_TOKEN),
-                    self.config_entry.data.get(REFRESH_TOKEN)
-                ):
+                stored_access = self.config_entry.data.get(ACCESS_TOKEN)
+                stored_refresh = self.config_entry.data.get(REFRESH_TOKEN)
+
+                _LOGGER.debug("Token refresh check: stored_access=%s..., stored_refresh=%s..., gateway_access=%s..., gateway_refresh=%s...",
+                              str(stored_access)[:20] if stored_access else "None",
+                              str(stored_refresh)[:20] if stored_refresh else "None",
+                              str(self.gateway.access_token)[:20] if hasattr(self.gateway, 'access_token') else "None",
+                              str(self.gateway.refresh_token)[:20] if hasattr(self.gateway, 'refresh_token') else "None")
+
+                if self.gateway.tokens_changed(stored_access, stored_refresh):
                     _LOGGER.info("OAuth tokens refreshed, updating config entry")
+                    _LOGGER.debug("tokens_changed() returned True - tokens were refreshed")
 
                     # Update config entry with new tokens from library
                     new_data = {**self.config_entry.data}
@@ -483,6 +490,8 @@ class BoschGatewayEntry:
                     self._refresh_token = self.gateway.refresh_token
 
                     _LOGGER.debug("Config entry updated with new tokens")
+                else:
+                    _LOGGER.debug("tokens_changed() returned False - no token refresh")
             elif hasattr(self.gateway, 'access_token') and hasattr(self.gateway, 'refresh_token'):
                 # Fallback for older library versions
                 current_token = self.gateway.access_token
