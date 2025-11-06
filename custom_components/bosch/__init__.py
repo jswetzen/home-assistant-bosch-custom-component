@@ -155,6 +155,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         access_key=entry.data[ACCESS_KEY],
         access_token=entry.data[ACCESS_TOKEN],
         refresh_token=entry.data.get(REFRESH_TOKEN),
+        token_expires_at=entry.data.get(TOKEN_EXPIRES_AT),
         entry=entry,
     )
     hass.data[DOMAIN][uuid] = {BOSCH_GATEWAY_ENTRY: gateway_entry}
@@ -213,7 +214,7 @@ class BoschGatewayEntry:
     """Bosch gateway entry config class."""
 
     def __init__(
-        self, hass, uuid, host, protocol, device_type, access_key, access_token, refresh_token, entry
+        self, hass, uuid, host, protocol, device_type, access_key, access_token, refresh_token, token_expires_at, entry
     ) -> None:
         """Init Bosch gateway entry config class."""
         self.hass = hass
@@ -222,6 +223,7 @@ class BoschGatewayEntry:
         self._access_key = access_key
         self._access_token = access_token
         self._refresh_token = refresh_token
+        self._token_expires_at = token_expires_at
         self._device_type = device_type
         self._protocol = protocol
         self.config_entry = entry
@@ -242,6 +244,7 @@ class BoschGatewayEntry:
         import bosch_thermostat_client as bosch
 
         _LOGGER.debug("Initializing Bosch integration.")
+        _LOGGER.debug("Token expires at: %s", self._token_expires_at if self._token_expires_at else "Not set - will refresh on every call")
         self._update_lock = asyncio.Lock()
         BoschGateway = bosch.gateway_chooser(device_type=self._device_type)
         self.gateway = BoschGateway(
@@ -253,6 +256,7 @@ class BoschGatewayEntry:
             access_key=self._access_key,
             access_token=self._access_token,
             refresh_token=self._refresh_token,
+            token_expires_at=self._token_expires_at,
             token_file=None,  # HA manages tokens via config entry
         )
 
@@ -490,6 +494,8 @@ class BoschGatewayEntry:
                     # Update internal reference
                     self._access_token = self.gateway.access_token
                     self._refresh_token = self.gateway.refresh_token
+                    if hasattr(self.gateway, 'token_expires_at'):
+                        self._token_expires_at = self.gateway.token_expires_at
 
                     _LOGGER.debug("Config entry updated with new tokens")
                 else:
@@ -520,6 +526,8 @@ class BoschGatewayEntry:
                     # Update internal reference
                     self._access_token = self.gateway.access_token
                     self._refresh_token = self.gateway.refresh_token
+                    if hasattr(self.gateway, 'token_expires_at'):
+                        self._token_expires_at = self.gateway.token_expires_at
 
                     _LOGGER.debug("Config entry updated with new tokens")
 
