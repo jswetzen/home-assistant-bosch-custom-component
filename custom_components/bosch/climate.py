@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from bosch_thermostat_client.const import HVAC_HEAT, HVAC_OFF, SETPOINT
+from bosch_thermostat_client.const import HVAC_HEAT, HVAC_COOL, HVAC_OFF, SETPOINT
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     HVACAction,
@@ -33,7 +33,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     uuid = config_entry.data[UUID]
     data = hass.data[DOMAIN][uuid]
     optimistic_mode = config_entry.options.get("optimistic_mode", False)
-    data[CLIMATE] = [
+
+    # Create climate entities for both heating circuits and AC circuits
+    entities = []
+
+    # Add heating circuits (HC)
+    entities.extend([
         BoschThermostat(
             hass=hass,
             uuid=uuid,
@@ -42,7 +47,22 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             optimistic_mode=optimistic_mode,
         )
         for hc in data[GATEWAY].heating_circuits
-    ]
+    ])
+
+    # Add AC circuits (if available)
+    if hasattr(data[GATEWAY], 'ac_circuits'):
+        entities.extend([
+            BoschThermostat(
+                hass=hass,
+                uuid=uuid,
+                bosch_object=ac,
+                gateway=data[GATEWAY],
+                optimistic_mode=optimistic_mode,
+            )
+            for ac in data[GATEWAY].ac_circuits
+        ])
+
+    data[CLIMATE] = entities
     async_add_entities(data[CLIMATE])
     async_dispatcher_send(hass, SIGNAL_BOSCH)
     return True
@@ -131,6 +151,8 @@ class BoschThermostat(BoschClimateWaterEntity, ClimateEntity):
         hvac_action = self._bosch_object.hvac_action
         if hvac_action == HVAC_HEAT:
             return HVACAction.HEATING
+        if hvac_action == HVAC_COOL:
+            return HVACAction.COOLING
         if hvac_action == HVAC_OFF:
             return HVACAction.IDLE
 
